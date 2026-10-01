@@ -1,46 +1,93 @@
 # Survey Studio
 
-A lightweight SurveyMonkey-style survey builder built as a responsive web app.
+Survey Studio is a SurveyMonkey-style web platform for creating, publishing and analysing surveys.
 
-## Included in this version
+## Version 2 features
 
-- Survey dashboard
-- Create, duplicate, edit and delete surveys
+- Email/password user accounts
+- Google sign-in
+- Shared cloud surveys using Firebase Cloud Firestore
+- Public respondent links
+- Owner-only editing and response access
 - Draft and published states
-- 11 question types:
-  - Short text
-  - Long text
-  - Multiple choice
-  - Checkboxes
-  - Dropdown
-  - Rating 1–5
-  - Linear scale
-  - Yes / No
-  - Email
-  - Number
-  - Date
+- 11 question types
 - Required questions
-- Add, delete, duplicate and reorder questions
-- Live respondent view
-- Shareable survey URL
-- Response submission
+- Add, duplicate, delete and reorder questions
+- Conditional question logic
+- Survey templates
+  - Customer feedback
+  - Course evaluation
+  - Event feedback
+  - Employee pulse
 - Results dashboard
-- Bar summaries for structured questions
+- Response counts and completion rate
+- Choice percentages
+- Rating and scale averages
 - Open-text response review
-- CSV response export
+- CSV export
 - Responsive mobile layout
+- Browser-only demo fallback when Firebase is not configured
 
-## Current storage model
+## Turn on cloud mode
 
-This MVP uses browser `localStorage`. It is excellent for prototyping and demonstrations, but each browser has its own data.
+The app works immediately in demo mode. To make surveys and responses work across different devices, connect Firebase.
 
-For a real public survey service, connect a shared database and authentication layer so responses from different devices flow into the survey owner's dashboard. Supabase, Firebase, PostgreSQL behind an API, or another hosted backend can be used.
+### 1. Create a Firebase project
+
+Go to the Firebase Console and create a project. Add a **Web App** to the project.
+
+### 2. Enable Authentication
+
+In **Build > Authentication > Sign-in method**, enable:
+
+- Email/Password
+- Google
+
+Add your GitHub Pages domain to **Authentication > Settings > Authorized domains** if Firebase does not add it automatically.
+
+### 3. Create Cloud Firestore
+
+In **Build > Firestore Database**, create a database.
+
+### 4. Install the security rules
+
+Open Firestore **Rules**. Replace the default rules with the contents of `firestore.rules` in this repository, then publish them.
+
+These rules allow:
+
+- survey owners to create, edit and delete their own surveys
+- public reading of published surveys only
+- public submission to published surveys
+- response viewing and deletion by the survey owner only
+
+### 5. Add the Firebase web configuration
+
+Open **Project settings > Your apps > SDK setup and configuration** and copy the Firebase configuration object.
+
+Edit `config.js` and replace:
+
+```js
+window.SURVEY_STUDIO_FIREBASE = null;
+```
+
+with your Firebase web configuration:
+
+```js
+window.SURVEY_STUDIO_FIREBASE = {
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
+};
+```
+
+Firebase web configuration identifies the Firebase project. Access control is enforced by Firestore security rules.
 
 ## Run locally
 
-Open `index.html` in a browser or serve the repository with any static web server.
-
-Example:
+Serve the repository through a local web server because authentication works best over HTTP rather than directly from a `file://` URL.
 
 ```bash
 python -m http.server 8080
@@ -50,34 +97,32 @@ Then open `http://localhost:8080`.
 
 ## GitHub Pages
 
-A Pages workflow is included under `.github/workflows/pages.yml`. After Pages is enabled for GitHub Actions in the repository settings, pushes to `main` deploy the app.
+The repository contains a GitHub Pages workflow under `.github/workflows/pages.yml`.
 
-## Recommended production phase
+In GitHub:
 
-1. Add user registration and sign-in.
-2. Add a hosted database for surveys and responses.
-3. Add row-level access controls so each owner sees only their data.
-4. Add anonymous public submission endpoints.
-5. Add skip logic / branching.
-6. Add themes and branding.
-7. Add reusable templates.
-8. Add email invitations and collector management.
-9. Add richer analytics and PDF reports.
-10. Add team workspaces and roles.
+1. Open **Settings > Pages**.
+2. Set **Source** to **GitHub Actions**.
+3. Push to `main` or manually run the Pages workflow.
+
+The public app will then be available from the repository's GitHub Pages address.
 
 ## Data model
 
 ### Survey
 
 ```text
-id
-title
-description
-status
-createdAt
-updatedAt
-theme
-questions[]
+/surveys/{surveyId}
+  id
+  ownerId
+  title
+  description
+  status
+  published
+  createdAt
+  updatedAt
+  theme
+  questions[]
 ```
 
 ### Question
@@ -87,15 +132,25 @@ id
 type
 title
 required
-options[] (when relevant)
-scale (when relevant)
+options[]
+scale
+logic {
+  sourceId
+  value
+}
 ```
+
+A question with `logic` appears only when the selected source question matches the configured answer.
 
 ### Response
 
 ```text
-id
-surveyId
-submittedAt
-answers { questionId: value }
+/surveys/{surveyId}/responses/{responseId}
+  surveyId
+  submittedAt
+  answers { questionId: value }
 ```
+
+## Next production upgrades
+
+Good next steps are email invitations, collector links, duplicate-response controls, custom themes, team workspaces, PDF reporting, response filters and a question bank.
