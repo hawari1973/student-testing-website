@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /surveys/{surveyId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
+
+      // Owners can always read their own survey.
+      // Respondents can only read published surveys.
+      allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
+        || resource.data.published == true;
+
+      match /responses/{responseId} {
+        // Anyone can submit to a currently published survey.
+        allow create: if get(/databases/$(database)/documents/surveys/$(surveyId)).data.published == true
+          && request.resource.data.surveyId == surveyId
+          && request.resource.data.answers is map
+          && request.resource.data.submittedAt is string;
+
+        // Only the survey owner can inspect or delete responses.
+        allow read, delete: if signedIn()
+          && get(/databases/$(database)/documents/surveys/$(surveyId)).data.ownerId == request.auth.uid;
+
+        allow update: if false;
+      }
+    }
+  }
+}
